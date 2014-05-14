@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_layout_file>
+	<ActiveTarget name="Debug" />
+	<File name="Docs.cpp" open="1" top="1" tabpos="1">
+		<Cursor position="144" topLine="0" />
+	</File>
+	<File name="Docs.h" open="1" top="0" tabpos="2">
+		<Cursor position="506" topLine="8" />
+	</File>
+	<File name="fastAlignment.cpp" open="1" top="0" tabpos="3">
+		<Cursor position="2923" topLine="0" />
+	</File>
+	<File name="fastAlignment.h" open="1" top="0" tabpos="4">
+		<Cursor position="879" topLine="0" />
+	</File>
+	<File name="main.cpp" open="1" top="0" tabpos="5">
+		<Cursor position="85" topLine="0" />
+	</File>
+	<File name="split.h" open="0" top="0" tabpos="0">
+		<Cursor position="50" topLine="0" />
+	</File>
+</CodeBlocks_layout_file>

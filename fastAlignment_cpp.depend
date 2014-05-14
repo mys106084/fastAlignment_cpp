@@ -1,0 +1,40 @@
+# depslib dependency file v1.0
+1399844449 source:/home/brian/workspace/fastAlignment_cpp/fastAlignment.cpp
+	"fastAlignment.h"
+
+1399837328 /home/brian/workspace/fastAlignment_cpp/fastAlignment.h
+	<string>
+	<iostream>
+	<map>
+	<vector>
+	"Docs.h"
+	<fstream>
+	<cmath>
+
+1399650953 source:/home/brian/workspace/fastAlignment_cpp/docs.cpp
+	"docs.h"
+
+1399652235 /home/brian/workspace/fastAlignment_cpp/docs.h
+	<string>
+	<iostream>
+
+1399842521 source:/home/brian/workspace/fastAlignment_cpp/Docs.cpp
+	"Docs.h"
+
+1399825011 /home/brian/workspace/fastAlignment_cpp/Docs.h
+	<string>
+	<iostream>
+	<fstream>
+	<map>
+	<vector>
+	"split.h"
+
+1399826352 source:/home/brian/workspace/fastAlignment_cpp/main.cpp
+	"main.h"
+	"fastAlignment.h"
+
+1399652091 /home/brian/workspace/fastAlignment_cpp/main.h
+
+1399655089 /home/brian/workspace/fastAlignment_cpp/split.h
+	<cstddef>
+

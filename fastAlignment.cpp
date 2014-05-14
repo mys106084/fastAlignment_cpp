@@ -1,0 +1,271 @@
+#include "fastAlignment.h"
+
+
+fastAlignment::fastAlignment()
+{
+    docs.Inputcorpus();
+    docs.Inputdev();
+    sum_sentences = docs.sum_sentences;
+    sum_sentences_dev = docs.sum_sentences_dev;
+
+    iterations = 5;
+    iter = 0;
+    infinitesimal = 0.0000001;
+
+    nullprob = 0.08;
+    dirT = 0.001;
+    lamb = 10;
+}
+
+fastAlignment::~fastAlignment()
+{
+    //dtor
+}
+
+void fastAlignment::UpdateCounts()
+{
+    count_e.clear();
+    count_fe.clear();
+    //ofstream fout("delta");
+    cout<<"E-step-UpdateCounts."<<endl;
+    for(int s=0;s<sum_sentences;s++)
+    {
+        if (s%10000 == 0)
+        {
+            cout<<"ComputeDelta - Sentence:"<<s<<endl;
+        }
+        int m = docs.lengths_f[s];
+        int l = docs.lengths_e[s];
+        for(int i=0;i<m;i++)
+        {
+            double prob[l+1];
+            double normalization = 0;
+            //------------------------------ComputeDelta------------------
+
+            double z=0;
+            if(l==0)
+                continue;
+            else
+                z = ComputeZ(i+1,l,m,lamb);
+            for(int j=0;j<l;j++)
+            {
+                prob[j] = GetT(docs.sentences_f[s][i],docs.sentences_e[s][j])*(1-nullprob)*GetQ(i,j,l,m,z);
+                normalization += prob[j];
+            }
+            prob[l] = GetT(docs.sentences_f[s][i],-1)*nullprob;
+            normalization += prob[l];
+            //-----------------------------UpdateCounts-------------------
+            for(int j=0;j<l;j++)
+            {
+                double delta = prob[j]/normalization;
+                Increment(docs.sentences_f[s][i],docs.sentences_e[s][j],delta);
+                Increment(docs.sentences_e[s][j],delta);
+                //fout<<"s:"<<s<<" i:"<<i<<" j:"<<j<<" delta:"<<delta<<endl;
+            }
+            double delta = prob[l]/normalization;
+            Increment(docs.sentences_f[s][i],-1,delta);
+            Increment(-1,delta);
+        }
+    }
+}
+
+void fastAlignment::UpdateCountsInit()
+{
+
+    cout<<"E-step-UpdateCounts."<<endl;
+    for(int s=0;s<sum_sentences;s++)
+    {
+        if (s%10000 == 0)
+        {
+            cout<<"ComputeDelta - Sentence:"<<s<<endl;
+        }
+        int m = docs.lengths_f[s];
+        int l = docs.lengths_e[s];
+        for(int i=0;i<m;i++)
+        {
+            double prob[l+1];
+            double normalization = 0;
+            //------------------------------ComputeDelta------------------
+            for(int j=0;j<l;j++)
+            {
+                prob[j] = (1.0/docs.sum_f)*(1-nullprob);
+                normalization += prob[j];
+            }
+            prob[l] = (1.0/docs.sum_f)*nullprob;
+            normalization += prob[l];
+            //-----------------------------UpdateCounts-------------------
+            for(int j=0;j<l;j++)
+            {
+                double delta = prob[j]/normalization;
+                Increment(docs.sentences_f[s][i],docs.sentences_e[s][j],delta);
+                Increment(docs.sentences_e[s][j],delta);
+            }
+            double delta = prob[l]/normalization;
+            Increment(docs.sentences_f[s][i],-1,delta);
+            Increment(-1,delta);
+        }
+    }
+}
+
+void fastAlignment::EM()
+{
+    for(iter=0;iter<iterations;iter++)
+    {
+        cout<<"EM processing in iteration:"<<iter<<endl;
+        if(iter==0)
+        {
+            UpdateCountsInit();
+            ComputeT();
+        }
+        else{
+            UpdateCounts();
+            ComputeT();
+        }
+    }
+}
+
+void fastAlignment::DEV()
+{
+    const char* url = docs.url_dev_out.c_str();
+    ofstream fout(url);
+    for(int s=0;s<sum_sentences_dev;s++)
+    {
+        int m = docs.lengths_dev_f[s];
+        int l = docs.lengths_dev_e[s];
+        for(int i=0;i<m;i++)
+        {
+            if(docs.sentences_dev_f[s][i]==-2)   // for the f words unseen
+                continue;
+            //------------------------------ComputeDelta------------------
+            double tmp = 0;
+            double maximum = 0;
+            int maxpos = 0;
+            double z = 0;
+
+            if(l==0)
+                continue;
+            else
+                z = ComputeZ(i+1,l,m,lamb);
+
+            for(int j=0;j<l;j++)
+            {
+                if(docs.sentences_dev_e[s][j]==-2)   // for the e words unseen
+                    continue;
+                tmp = GetT(docs.sentences_dev_f[s][i],docs.sentences_dev_e[s][j])*(1-nullprob)*GetQ(i,j,l,m,z);
+                if(tmp>=maximum)
+                {
+                    maxpos = j;
+                    maximum = tmp;
+                }
+            }
+            tmp = GetT(docs.sentences_dev_f[s][i],-1)*nullprob;
+            if (tmp >= maximum)     // null alignment
+                continue;
+            fout<<(s+1)<<" "<<maxpos+1<<" "<<i+1<<endl;
+        }
+    }
+}
+
+
+void fastAlignment::ComputeT()
+{
+    cout<<"M-step-ComputeT."<<endl;
+    if(prob_t.size()<count_fe.size())
+        prob_t.resize(count_fe.size());
+    int i = 0;
+    for(vector<map < int, double> >::iterator iter_map = count_fe.begin();iter_map!= count_fe.end();++iter_map)
+    {
+        for(map < int, double>::iterator iter_value = (*iter_map).begin(); iter_value!= (*iter_map).end();++iter_value  )
+        {
+            int j = (*iter_value).first;
+            prob_t[i][j] =(count_fe[i][j] + dirT) / (count_e[j]+ dirT*docs.sum_f);
+        }
+        i++;
+    }
+}
+
+double fastAlignment::GetT(int &i,int j)
+{
+    if (prob_t[i][j] == 0)
+        prob_t[i][j] = 1.0/docs.sum_f;
+    return prob_t[i][j];
+}
+double fastAlignment::GetQ(const unsigned i, const unsigned j, const unsigned l, const unsigned m,double z)
+{
+    return UnnormalizedProb(i+1,j+1,l,m,lamb)/z;
+}
+
+
+void fastAlignment::Increment(int &i,int j, double delta)
+{
+    if(i>=count_fe.size())  //Note i is the index from 1 to m
+    {
+        count_fe.resize(i + 1);
+    }
+    count_fe[i][j] += delta;
+}
+void fastAlignment::Increment(int j, double delta)
+{
+    count_e[j] += delta;
+}
+
+//
+double fastAlignment::Feature(const unsigned i, const unsigned j, const unsigned l, const unsigned m)
+{
+    return -fabs(double(j) / l - double(i) / m);
+}
+double fastAlignment::UnnormalizedProb(const unsigned i, const unsigned j, const unsigned l, const unsigned m, const double alpha)
+{
+    return exp(Feature(i, j, l, m) * alpha);
+}
+
+double fastAlignment::ComputeZ(const unsigned i, const unsigned l, const unsigned m, const double alpha)
+{
+    const double split = double(i) * l / m;
+    const unsigned floor = split;
+    unsigned ceil = floor + 1;
+    const double ratio = exp(-alpha / l);
+    const unsigned num_top = l - floor;
+    double ezt = 0;
+    double ezb = 0;
+    if (num_top)
+      ezt = UnnormalizedProb(i, ceil, l, m, alpha) * (1.0 - pow(ratio, num_top)) / (1.0 - ratio);
+    if (floor)
+      ezb = UnnormalizedProb(i, floor, l, m, alpha) * (1.0 - pow(ratio, floor)) / (1.0 - ratio);
+    return ezb + ezt;
+}
+double fastAlignment::arithmetico_geometric_series(const double a_1, const double g_1, const double r, const double d, const unsigned n)
+{
+    const double g_np1 = g_1 * pow(r, n);
+    const double a_n = d * (n - 1) + a_1;
+    const double x_1 = a_1 * g_1;
+    const double g_2 = g_1 * r;
+    const double rm1 = r - 1;
+    return (a_n * g_np1 - x_1) / rm1 - d*(g_np1 - g_2) / (rm1 * rm1);
+}
+
+
+/*
+
+double ComputeDLogZ(const unsigned i, const unsigned m, const unsigned n, const double alpha)
+{
+    const double z = ComputeZ(i, n, m, alpha);
+    const double split = double(i) * n / m;
+    const unsigned floor = split;
+    const unsigned ceil = floor + 1;
+    const double ratio = exp(-alpha / n);
+    const double d = -1.0 / n;
+    const unsigned num_top = n - floor;
+    double pct = 0;
+    double pcb = 0;
+    if (num_top) {
+      pct = arithmetico_geometric_series(Feature(i, ceil, m, n), UnnormalizedProb(i, ceil, m, n, alpha), ratio, d, num_top);
+      //cerr << "PCT = " << pct << endl;
+    }
+    if (floor) {
+      pcb = arithmetico_geometric_series(Feature(i, floor, m, n), UnnormalizedProb(i, floor, m, n, alpha), ratio, d, floor);
+      //cerr << "PCB = " << pcb << endl;
+    }
+    return (pct + pcb) / z;
+}
+*/
